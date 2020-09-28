@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
+import uk.ac.ebi.tsc.tesk.config.security.AuthorisationProperties;
 import uk.ac.ebi.tsc.tesk.config.security.User;
 import uk.ac.ebi.tsc.tesk.exception.KubernetesException;
 import uk.ac.ebi.tsc.tesk.exception.TaskNotFoundException;
@@ -39,15 +40,18 @@ public class KubernetesClientWrapper {
 
     private final CoreV1Api patchCoreApi;
 
+    private final AuthorisationProperties authorisationProperties;
+
     private final String namespace;
 
     public KubernetesClientWrapper(BatchV1Api batchApi, @Qualifier("patchBatchApi") BatchV1Api patchBatchApi,
                                    CoreV1Api coreApi, @Qualifier("patchCoreApi") CoreV1Api patchCoreApi,
-                                   @Value("${tesk.api.k8s.namespace}") String namespace) {
+                                   AuthorisationProperties authorisationProperties, @Value("${tesk.api.k8s.namespace}") String namespace) {
         this.batchApi = batchApi;
         this.patchBatchApi = patchBatchApi;
         this.coreApi = coreApi;
         this.patchCoreApi = patchCoreApi;
+        this.authorisationProperties = authorisationProperties;
         this.namespace = namespace;
     }
 
@@ -94,6 +98,11 @@ public class KubernetesClientWrapper {
             // and optionally also to only those jobs, which were created bu the user
             labelSelector += "," + user.getLabelSelector();
         }
+
+        if(authorisationProperties.isIgnoreGroupMembership()){
+            labelSelector += "," + new StringJoiner("=").add(LABEL_USERID_KEY).add(user.getUsername()).toString();
+        }
+
         V1JobList result = this.listJobs(pageToken, labelSelector, itemsPerPage);
         if (user.isMemberInNonManagedGroups()) {
             //if there are groups, where user is a manager and other groups, where user is only a member
